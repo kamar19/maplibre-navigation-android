@@ -1,20 +1,42 @@
 package com.mapbox.services.android.navigation.ui.v5;
 
+import android.content.Context;
 import android.location.Location;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.mapbox.services.android.navigation.ui.v5.route.MapboxRouteFetcher;
 import com.mapbox.services.android.navigation.ui.v5.route.NavigationRoute;
+import com.mapbox.services.android.navigation.v5.models.DirectionsCriteria;
 import com.mapbox.services.android.navigation.v5.models.DirectionsResponse;
 import com.mapbox.services.android.navigation.v5.models.DirectionsRoute;
+import com.mapbox.services.android.navigation.v5.models.LegStep;
+import com.mapbox.services.android.navigation.v5.models.RouteLeg;
 import com.mapbox.services.android.navigation.v5.models.RouteOptions;
 import com.mapbox.geojson.Point;
+import com.mapbox.services.android.navigation.v5.models.StepIntersection;
+import com.mapbox.services.android.navigation.v5.models.StepManeuver;
 import com.mapbox.services.android.navigation.v5.route.RouteListener;
 import com.mapbox.services.android.navigation.v5.routeprogress.RouteProgress;
 
+import org.osmdroid.bonuspack.routing.OSRMRoadManager;
+import org.osmdroid.bonuspack.routing.Road;
+import org.osmdroid.bonuspack.routing.RoadLeg;
+import org.osmdroid.bonuspack.routing.RoadManager;
+import org.osmdroid.bonuspack.routing.RoadNode;
+import org.osmdroid.bonuspack.utils.PolylineEncoder;
+import org.osmdroid.util.GeoPoint;
+
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 class NavigationViewRouter implements RouteListener {
 
@@ -58,6 +80,12 @@ class NavigationViewRouter implements RouteListener {
   }
 
   @Override
+  public void onUpdateOSMRoute(DirectionsRoute route, @Nullable RouteProgress routeProgress) {
+    routeComparator.compareDirectionsRoute(route, currentRoute);
+    updateCallStatusReceived();
+  }
+
+  @Override
   public void onErrorReceived(Throwable throwable) {
     onRequestError(throwable.getMessage());
     updateCallStatusReceived();
@@ -71,8 +99,17 @@ class NavigationViewRouter implements RouteListener {
     if (isRouting()) {
       return;
     }
+    Log.v("nv2_log_aparu_driver", "2 findRouteFrom - location = " + location);
     NavigationRoute.Builder builder = onlineRouter.buildRequest(location, routeProgress);
     findOnlineRouteWith(builder);
+  }
+
+  void findOSMRouteFrom(@Nullable DirectionsRoute route) {
+    if (isRouting()) {
+      return;
+    }
+    Log.v("nv2_log_aparu_driver", "1 findRouteFrom - location = " + location);
+    findOSMOnlineRouteWith(route);
   }
 
   void updateLocation(@NonNull Location location) {
@@ -127,6 +164,13 @@ class NavigationViewRouter implements RouteListener {
   private void findOnlineRouteWith(NavigationRoute.Builder builder) {
     onlineRouter.cancelRouteCall();
     onlineRouter.findRouteWith(builder);
+    callStatus = new RouteCallStatus(new Date());
+  }
+
+  private void findOSMOnlineRouteWith(DirectionsRoute route) {
+    onlineRouter.cancelRouteCall();
+    Log.v("nv2_log_aparu_driver", "findRouteWith 011");
+    onlineRouter.updateListeners(route);
     callStatus = new RouteCallStatus(new Date());
   }
 

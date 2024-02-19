@@ -2,6 +2,7 @@ package com.mapbox.services.android.navigation.ui.v5.route;
 
 import android.content.Context;
 import android.location.Location;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -64,6 +65,7 @@ public class MapboxRouteFetcher extends RouteFetcher {
     public void findRouteFromRouteProgress(Location location, RouteProgress routeProgress) {
         this.routeProgress = routeProgress;
         NavigationRoute.Builder builder = buildRequest(location, routeProgress);
+        Log.v("nv2_log_aparu_driver", "findRouteWith 02");
         findRouteWith(builder);
     }
 
@@ -159,12 +161,17 @@ public class MapboxRouteFetcher extends RouteFetcher {
     public void findRouteWith(NavigationRoute.Builder builder) {
         if (builder != null) {
             navigationRoute = builder.build();
+            Log.v("nv2_log_aparu_driver", "navigationRoute.getRoute 01");
             navigationRoute.getRoute(directionsResponseCallback);
         }
     }
 
     private boolean invalid(Context context, Location location, RouteProgress routeProgress) {
         return context == null || location == null || routeProgress == null;
+    }
+    public void updateListeners(DirectionsRoute route) {
+        Log.v("nv2_log_aparu_driver", "updateListeners 00");
+        updateListenersUpdateOSMRoute(route, routeProgress);
     }
 
     private Callback<com.mapbox.api.directions.v5.models.DirectionsResponse> directionsResponseCallback = new Callback<com.mapbox.api.directions.v5.models.DirectionsResponse>() {
@@ -192,6 +199,11 @@ public class MapboxRouteFetcher extends RouteFetcher {
     private void updateListeners(DirectionsResponse response, RouteProgress routeProgress) {
         for (RouteListener listener : routeListeners) {
             listener.onResponseReceived(response, routeProgress);
+        }
+    }
+    private void updateListenersUpdateOSMRoute(DirectionsRoute route, RouteProgress routeProgress) {
+        for (RouteListener listener : routeListeners) {
+            listener.onUpdateOSMRoute(route, routeProgress);
         }
     }
 

@@ -7,6 +7,7 @@ buildscript {
     google()
     mavenCentral()
     maven { url 'https://plugins.gradle.org/m2' }
+    maven { url 'https://jitpack.io' }
   }
 
   dependencies {
@@ -15,6 +16,7 @@ buildscript {
     classpath pluginDependencies.errorprone
     classpath pluginDependencies.dependencyUpdates
     classpath pluginDependencies.kotlinGradle
+    classpath 'com.android.tools.build:gradle:7.4.2'
   }
 }
 
@@ -27,6 +29,7 @@ allprojects {
   repositories {
     google()
     maven { url 'https://plugins.gradle.org/m2' }
+    maven { url "https://jitpack.io" }
   }
 
   group = GROUP

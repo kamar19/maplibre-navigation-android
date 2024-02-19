@@ -143,9 +143,11 @@ class MockNavigationActivity :
 
     override fun onMapReady(mapboxMap: MapboxMap) {
         this.mapboxMap = mapboxMap
-        mapboxMap.setStyle(Style.Builder().fromUri(getString(R.string.map_style_light))) { style ->
-            enableLocationComponent(style)
-        }
+        val MAPTILERKEY = "y5DBeK1Dp56ItEU51ym7"
+        val styleUrl = "https://89.218.63.99:4435/App/MapStyle?key=${MAPTILERKEY}";
+        mapboxMap.setStyle(styleUrl, {
+            enableLocationComponent(it)
+        })
 
         navigationMapRoute = NavigationMapRoute(navigation, binding.mapView, mapboxMap)
 

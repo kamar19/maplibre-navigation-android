@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Build;
 import android.os.IBinder;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -15,6 +16,7 @@ import com.mapbox.services.android.navigation.v5.milestone.BannerInstructionMile
 import com.mapbox.services.android.navigation.v5.milestone.Milestone;
 import com.mapbox.services.android.navigation.v5.milestone.MilestoneEventListener;
 import com.mapbox.services.android.navigation.v5.milestone.VoiceInstructionMilestone;
+import com.mapbox.services.android.navigation.v5.models.DirectionsResponse;
 import com.mapbox.services.android.navigation.v5.models.DirectionsRoute;
 import com.mapbox.services.android.navigation.v5.navigation.camera.Camera;
 import com.mapbox.services.android.navigation.v5.navigation.camera.SimpleCamera;
@@ -346,6 +348,12 @@ public class MapboxNavigation implements ServiceConnection {
       // Send navigation event running: true
       navigationEventDispatcher.onNavigationEvent(true);
     }
+  }
+
+  public void updateNavigation(@NonNull DirectionsRoute directionsRoute) {
+    Log.v("nv_log_aparu_driver", "MapboxNavigation - startNavigation");
+    ValidationUtils.validDirectionsRoute(directionsRoute, options.defaultMilestonesEnabled());
+    this.directionsRoute = directionsRoute;
   }
 
   /**

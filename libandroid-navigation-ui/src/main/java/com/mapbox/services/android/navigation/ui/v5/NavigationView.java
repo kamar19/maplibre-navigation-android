@@ -232,7 +232,12 @@ public class NavigationView extends CoordinatorLayout implements LifecycleOwner,
    */
   @Override
   public void onMapReady(final MapboxMap mapboxMap) {
-    mapboxMap.setStyle(ThemeSwitcher.retrieveMapStyle(getContext()), new Style.OnStyleLoaded() {
+    String MAPTILERKEY = "";
+    String styleUrl = "";
+//        mapboxMap.setStyle(Style.Builder().fromUri(getString(R.string.map_style_light))) { style ->
+//            enableLocationComponent(style)
+//        }
+    mapboxMap.setStyle(styleUrl, new Style.OnStyleLoaded() {
       @Override
       public void onStyleLoaded(@NonNull Style style) {
         initializeNavigationMap(mapView, mapboxMap);

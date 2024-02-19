@@ -80,6 +80,10 @@ dependencies {
   testImplementation dependenciesList.mockito
   testImplementation dependenciesList.robolectric
   testImplementation dependenciesList.json
+
+
+  implementation 'org.osmdroid:osmdroid-android:6.1.14'
+  implementation 'com.github.MKergall:osmbonuspack:6.9.0'
 }
 
 apply from: 'javadoc.gradle'

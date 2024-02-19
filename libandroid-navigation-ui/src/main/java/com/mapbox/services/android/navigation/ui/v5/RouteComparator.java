@@ -7,6 +7,7 @@ import com.mapbox.services.android.navigation.v5.models.DirectionsResponse;
 import com.mapbox.services.android.navigation.v5.models.DirectionsRoute;
 import com.mapbox.services.android.navigation.v5.models.RouteLeg;
 
+import java.util.ArrayList;
 import java.util.List;
 
 class RouteComparator {
@@ -28,6 +29,16 @@ class RouteComparator {
       }
       navigationViewRouter.updateCurrentRoute(bestRoute);
     }
+  }
+
+  void compareDirectionsRoute(@NonNull DirectionsRoute newRoute, @Nullable DirectionsRoute chosenRoute) {
+      DirectionsRoute bestRoute = newRoute;
+      ArrayList<DirectionsRoute> routes = new ArrayList<>();
+      routes.add(newRoute);
+      if (isNavigationRunning(chosenRoute)) {
+        bestRoute = findMostSimilarRoute(routes, newRoute, chosenRoute);
+      }
+      navigationViewRouter.updateCurrentRoute(bestRoute);
   }
 
   private DirectionsRoute findMostSimilarRoute(List<DirectionsRoute> routes, DirectionsRoute currentBestRoute,

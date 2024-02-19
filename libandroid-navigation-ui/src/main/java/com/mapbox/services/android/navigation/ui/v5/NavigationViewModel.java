@@ -3,6 +3,9 @@ package com.mapbox.services.android.navigation.ui.v5;
 import android.app.Application;
 import android.content.Context;
 import android.location.Location;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -25,8 +28,13 @@ import com.mapbox.services.android.navigation.v5.milestone.Milestone;
 import com.mapbox.services.android.navigation.v5.milestone.MilestoneEventListener;
 import com.mapbox.services.android.navigation.v5.milestone.VoiceInstructionMilestone;
 import com.mapbox.services.android.navigation.v5.models.BannerInstructions;
+import com.mapbox.services.android.navigation.v5.models.DirectionsCriteria;
 import com.mapbox.services.android.navigation.v5.models.DirectionsRoute;
+import com.mapbox.services.android.navigation.v5.models.LegStep;
+import com.mapbox.services.android.navigation.v5.models.RouteLeg;
 import com.mapbox.services.android.navigation.v5.models.RouteOptions;
+import com.mapbox.services.android.navigation.v5.models.StepIntersection;
+import com.mapbox.services.android.navigation.v5.models.StepManeuver;
 import com.mapbox.services.android.navigation.v5.navigation.MapboxNavigation;
 import com.mapbox.services.android.navigation.v5.navigation.MapboxNavigationOptions;
 import com.mapbox.services.android.navigation.v5.navigation.NavigationEventListener;
@@ -38,10 +46,22 @@ import com.mapbox.services.android.navigation.v5.routeprogress.RouteProgress;
 import com.mapbox.services.android.navigation.v5.utils.DistanceFormatter;
 import com.mapbox.services.android.navigation.v5.utils.LocaleUtils;
 import com.mapbox.services.android.navigation.v5.utils.RouteUtils;
+import com.mapbox.services.android.navigation.v5.utils.ValidationUtils;
 
 import org.jetbrains.annotations.TestOnly;
-
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.osmdroid.bonuspack.routing.Road;
+import org.osmdroid.bonuspack.routing.RoadLeg;
+import org.osmdroid.bonuspack.routing.RoadManager;
+import org.osmdroid.bonuspack.routing.RoadNode;
+import org.osmdroid.bonuspack.utils.PolylineEncoder;
+import org.osmdroid.util.GeoPoint;
+import org.osmdroid.bonuspack.routing.OSRMRoadManager;
 
 public class NavigationViewModel extends AndroidViewModel {
 
@@ -77,8 +97,12 @@ public class NavigationViewModel extends AndroidViewModel {
     private boolean isChangingConfigurations;
     private MapConnectivityController connectivityController;
 
+    private Context context;
+    private com.mapbox.api.directions.v5.models.DirectionsRoute directionsRoute;
+
     public NavigationViewModel(Application application) {
         super(application);
+        context = application.getBaseContext();
         initializeLocationEngine();
         initializeRouter();
         this.routeUtils = new RouteUtils();
@@ -326,6 +350,7 @@ public class NavigationViewModel extends AndroidViewModel {
         public void userOffRoute(Location location) {
             speechPlayer.onOffRoute();
             Point newOrigin = Point.fromLngLat(location.getLongitude(), location.getLatitude());
+            Log.v("nv2_log_aparu_driver", "handleOffRouteEvent 01 - newOrigin = " + newOrigin);
             handleOffRouteEvent(newOrigin);
         }
     };
@@ -421,9 +446,170 @@ public class NavigationViewModel extends AndroidViewModel {
     private void handleOffRouteEvent(Point newOrigin) {
         if (navigationViewEventDispatcher != null && navigationViewEventDispatcher.allowRerouteFrom(newOrigin)) {
             navigationViewEventDispatcher.onOffRoute(newOrigin);
-            router.findRouteFrom(routeProgress);
+            Log.v("nv2_log_aparu_driver", "findRouteFrom 01");
+//            router.findRouteFrom(routeProgress);
+            calculateRoute(newOrigin, true);
             isOffRoute.setValue(true);
         }
+    }
+    private DirectionsRoute calculateRoute(Point newOrigin, Boolean isUpdateListeners) {
+        ArrayList<GeoPoint> wayPoints = new ArrayList<>();
+        wayPoints.add(new GeoPoint(newOrigin.latitude(), newOrigin.longitude()));
+//        if (!isUpdateListeners) {
+        // нужно как то отсекать точки которые пройдены
+//        }
+        Point endPoint = routeProgress.directionsRoute().routeOptions().coordinates().get(routeProgress.directionsRoute().routeOptions().coordinates().size()-1);
+        wayPoints.add(new GeoPoint(endPoint.latitude(), endPoint.longitude()));//endPoint
+        Log.v("nv2_log_aparu_driver", "calculateRoute - wayPoints.size() = " + wayPoints.size());
+        return calculateRoute(context, wayPoints, route.getValue().routeOptions().user(),
+                new OnCalculateRouteCallback2() {
+                    @Override
+                    public void onCalculateRouteReady(DirectionsRoute route) {
+                        Log.v("nv2_log_aparu_driver", "AparuNavigationViewModel2 - updateRoute 02");
+                        updateRoute(route);
+                        if (isUpdateListeners) {
+                            Log.v("nv2_log_aparu_driver", "AparuNavigationViewModel2 - updateNavigation");
+                            navigation.updateNavigation(route);
+                            router.findOSMRouteFrom(route);
+//                            currentLegSteps = route.legs().get(0).steps();
+                            Log.v("nv2_log_aparu_driver", "AparuNavigationViewModel2 - onCalculateRouteReady - directionsRoutes.get(0).legs().steps().size = " + route.legs().get(0).steps().size());
+                            //navigationMapRoute?.addRoutes(response.routes())
+                        }
+                    }
+                });
+    }
+
+    public DirectionsRoute calculateRoute(Context context, ArrayList<GeoPoint> wayPoints, String userAgent, OnCalculateRouteCallback2 onCalculateRouteCallback2) {
+//        ArrayList<GeoPoint> wayPoints  = new ArrayList<>();
+        ArrayList<Road> roads = new ArrayList<>();
+        final DirectionsRoute[] route = {null};
+
+        Log.v("nv2_log_aparu_driver", "AparuNavigationViewModel - calculateRoute");
+//        if (sPoint == null || routPoints == null) {
+//            Log.v("nv_log_aparu_driver", "MyCalcRoute: User location is null, therefore, origin can't be set.");
+//            return;
+//        }
+//        wayPoints.clear();
+//        wayPoints.add(sPoint);
+//        wayPoints.addAll(routPoints);
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Handler handler = new Handler(Looper.getMainLooper());
+
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                RoadManager roadManager = new OSRMRoadManager(context, userAgent);
+                roads.clear();
+                roads.addAll(Arrays.asList(roadManager.getRoads(wayPoints)));
+                if (roads.get(0).mStatus == Road.STATUS_OK) {
+                    route[0] = convertOsrmRoadToMapLibreRoute(roads.get(0), userAgent);
+                }
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (roads.get(0).mStatus == Road.STATUS_OK) {
+                            Log.v("nv2_log_aparu_driver", "calculateRoute - onCalculateRouteReady 01");
+                            onCalculateRouteCallback2.onCalculateRouteReady(route[0]);
+                        } else {
+                            // MANAGE EXCEPTIONS
+                        }
+                    }
+                });
+            }
+        });
+        return route[0];
+    }
+    private DirectionsRoute convertOsrmRoadToMapLibreRoute(Road road, String userAgent) {
+        List<Point> routePoints = new ArrayList<>();
+        ArrayList<org.osmdroid.util.GeoPoint> OsrmPoints;
+
+        // Convert list of Points
+        OsrmPoints = road.mRouteHigh;
+        for (org.osmdroid.util.GeoPoint point : OsrmPoints) {
+            routePoints.add(Point.fromLngLat(point.getLongitude(), point.getLatitude()));
+        }
+        Log.v("nv_log_aparu_driver", "convertOsrmRoadToMapLibreRoute - routePoints.size()" + routePoints.size());
+        // BUILD RouteOptions
+        RouteOptions routeOptions = RouteOptions.builder()
+                .geometries(DirectionsCriteria.GEOMETRY_POLYLINE6)
+                .profile(DirectionsCriteria.PROFILE_DRIVING)
+                .accessToken("pk.0")                                    // fake AccessToken
+                .user(userAgent)
+                .requestUuid("c945b0b4-9764-11ed-a8fc-0242ac120002")    // fake UUID ver.1
+                .baseUrl("www.fakeUrl.com")                             // fake url
+                .coordinates(routePoints)
+                .voiceInstructions(true)
+                .bannerInstructions(true)
+                .build();
+
+        // BUILD RouteLegs
+        List<com.mapbox.services.android.navigation.v5.models.RouteLeg> routeLegs = new ArrayList<>();
+        for (RoadLeg leg : road.mLegs) {
+            // BUILD LegSteps
+            int indexEndNode;
+            List<org.osmdroid.util.GeoPoint> roadPoints = new ArrayList<>(road.mRouteHigh);
+            List<LegStep> legSteps = new ArrayList<>();
+            for (RoadNode roadNode : road.mNodes) {
+                // GEOMETRY of LegStep
+                indexEndNode = 0;
+                for (int i = 0; i < roadPoints.size(); i++) {
+                    if (roadPoints.get(i).getLatitude() == roadNode.mLocation.getLatitude() && roadPoints.get(i).getLongitude() == roadNode.mLocation.getLongitude()) {
+                        indexEndNode = i;
+                        break;
+                    }
+                }
+                ArrayList<org.osmdroid.util.GeoPoint> legPoints = new ArrayList<>();
+                for (int i = 0; i <= indexEndNode; i++)
+                    legPoints.add(roadPoints.get(i));
+                roadPoints.subList(0, indexEndNode + 1).clear();
+                // End GEOMETRY of LegStep
+
+                double[] rawLocation = {roadNode.mLocation.getLongitude(), roadNode.mLocation.getLatitude()};
+
+                List<StepIntersection> stepIntersections = new ArrayList<>();
+                StepIntersection stepIntersection = StepIntersection.builder()      // No other OSM data for this
+                        .rawLocation(rawLocation)
+                        .build();
+                stepIntersections.add(stepIntersection);
+
+                LegStep legStep = LegStep.builder()
+                        .distance(roadNode.mLength * 1000)
+                        .duration(roadNode.mDuration)
+                        .weight(1.0)
+                        .mode("auto")
+                        .intersections(stepIntersections)
+                        .geometry(PolylineEncoder.encode(legPoints, 1))
+                        .maneuver(StepManeuver.builder()                    // No all OSM data for this
+                                .instruction(roadNode.mInstructions)
+                                .rawLocation(rawLocation)
+                                .bearingBefore(0.0)         // No OSM data for this
+                                .bearingAfter(0.0)          // No OSM data for this
+                                .build())
+                        .build();
+
+                legSteps.add(legStep);
+            }
+            Log.v("nv_log_aparu_driver", "convertOsrmRoadToMapLibreRoute - legSteps.size()" + legSteps.size());
+            RouteLeg routeLeg = RouteLeg.builder()
+                    .distance(leg.mLength)
+                    .duration(leg.mDuration)
+                    .steps(legSteps)
+                    .build();
+
+            routeLegs.add(routeLeg);
+        }
+
+        // Build DirectionsRoute
+        return DirectionsRoute.builder()
+                .legs(routeLegs)
+                .geometry(PolylineEncoder.encode(road.mRouteHigh, 1))
+                .weightName("auto")
+                .weight(1.0)
+                .distance(road.mLength * 1000)
+                .duration(road.mDuration)
+                .routeOptions(routeOptions)
+                .build();
     }
 
     private void sendNavigationStatusEvent(boolean isRunning) {
@@ -460,5 +646,9 @@ public class NavigationViewModel extends AndroidViewModel {
             instructions = navigationViewEventDispatcher.onBannerDisplay(instructions);
         }
         return instructions;
+    }
+
+    public interface OnCalculateRouteCallback2 {
+        void onCalculateRouteReady(DirectionsRoute route);
     }
 }

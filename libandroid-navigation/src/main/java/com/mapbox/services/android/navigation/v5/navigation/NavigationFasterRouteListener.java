@@ -3,6 +3,7 @@ package com.mapbox.services.android.navigation.v5.navigation;
 import androidx.annotation.Nullable;
 
 import com.mapbox.services.android.navigation.v5.models.DirectionsResponse;
+import com.mapbox.services.android.navigation.v5.models.DirectionsRoute;
 import com.mapbox.services.android.navigation.v5.route.FasterRoute;
 import com.mapbox.services.android.navigation.v5.route.RouteListener;
 import com.mapbox.services.android.navigation.v5.routeprogress.RouteProgress;
@@ -26,6 +27,11 @@ class NavigationFasterRouteListener implements RouteListener {
     if (fasterRouteEngine.isFasterRoute(response, routeProgress)) {
       eventDispatcher.onFasterRouteEvent(response.routes().get(FIRST_ROUTE));
     }
+  }
+
+  @Override
+  public void onUpdateOSMRoute(DirectionsRoute route, @Nullable RouteProgress routeProgress) {
+    eventDispatcher.onFasterRouteEvent(route);
   }
 
   @Override

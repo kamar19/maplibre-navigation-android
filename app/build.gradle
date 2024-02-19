@@ -90,6 +90,9 @@ dependencies {
     // Separate dependencies of the app that don't need to be in the public dependencies API
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.5.1"
     implementation 'androidx.multidex:multidex:2.0.1'
+
+    implementation 'org.osmdroid:osmdroid-android:6.1.14'
+    implementation 'com.github.MKergall:osmbonuspack:6.9.0'
 }
 
 apply from: "${rootDir}/gradle/developer-config.gradle"
